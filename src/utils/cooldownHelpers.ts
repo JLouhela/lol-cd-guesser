@@ -68,10 +68,23 @@ export function generateExactOptions(
   const options = new Set<number>();
   options.add(correctCooldown);
 
+  // Check if the correct cooldown has decimals
+  const hasDecimals = correctCooldown % 1 !== 0;
+
   // Generate distractor values within the range
   while (options.size < 3) {
-    const randomValue = Math.floor(Math.random() * (rangeMax - rangeMin + 1)) + rangeMin;
-    if (randomValue !== correctCooldown) {
+    let randomValue: number;
+
+    if (hasDecimals) {
+      // Generate values with .5 decimals (common in LoL: 6.5, 7.5, 8.5, etc.)
+      const wholeNumber = Math.floor(Math.random() * (rangeMax - rangeMin)) + rangeMin;
+      randomValue = wholeNumber + 0.5;
+    } else {
+      // Generate whole numbers
+      randomValue = Math.floor(Math.random() * (rangeMax - rangeMin + 1)) + rangeMin;
+    }
+
+    if (randomValue !== correctCooldown && randomValue >= rangeMin && randomValue <= rangeMax) {
       options.add(randomValue);
     }
   }

@@ -21,7 +21,6 @@ interface QuestionPhaseProps {
 
 export function QuestionPhase({
   phase,
-  questionRank,
   maxRank,
   phase1Options = [],
   phase2Options = [],
@@ -45,7 +44,7 @@ export function QuestionPhase({
         }`}
       >
         <h3 className="text-xl font-bold text-white mb-4">
-          Phase 1: What is the cooldown range at Rank {questionRank}?
+          Phase 1: What is the cooldown range at Rank 1?
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {phase1Options.map((option) => (

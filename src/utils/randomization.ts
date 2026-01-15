@@ -24,12 +24,10 @@ export function selectRandomSpell(champion: ChampionDetail): {
 
 /**
  * Select a random rank for the question
- * For ultimate abilities (maxrank 3), returns 1-3
- * For basic abilities (maxrank 5), returns 1-5
+ * Always returns 1 to focus on Rank 1 vs Max Rank comparison
  */
-export function selectRandomRank(spell: Spell): number {
-  const maxRank = spell.maxrank;
-  return Math.floor(Math.random() * maxRank) + 1;
+export function selectRandomRank(_spell: Spell): number {
+  return 1;
 }
 
 /**
