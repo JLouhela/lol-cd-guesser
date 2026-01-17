@@ -8,7 +8,7 @@ interface UseChampionDataReturn {
   isLoading: boolean;
   error: string | null;
   retry: () => void;
-  loadChampionDetail: (championId: string) => Promise<ChampionDetail | null>;
+  loadChampionDetail: (championId: string, signal?: AbortSignal) => Promise<ChampionDetail | null>;
 }
 
 export function useChampionData(): UseChampionDataReturn {
@@ -23,17 +23,33 @@ export function useChampionData(): UseChampionDataReturn {
   const pendingRequests = useRef<Map<string, Promise<ChampionDetail | null>>>(new Map());
 
   useEffect(() => {
-    loadChampions();
+    const abortController = new AbortController();
+    loadChampions(abortController.signal);
+
+    // Cleanup on unmount
+    return () => {
+      console.log('[useChampionData] Component unmounting, aborting requests');
+      abortController.abort();
+      // Clear pending requests to prevent memory leaks
+      pendingRequests.current.clear();
+    };
   }, []);
 
-  async function loadChampions() {
+  async function loadChampions(signal?: AbortSignal) {
     console.log('[useChampionData] loadChampions started');
     try {
       setIsLoading(true);
       setError(null);
       console.log('[useChampionData] Calling getChampionList...');
 
-      const championListResponse = await dataDragonService.getChampionList();
+      const championListResponse = await dataDragonService.getChampionList(signal);
+
+      // Check if aborted after async operation
+      if (signal?.aborted) {
+        console.log('[useChampionData] Aborted after getChampionList');
+        return;
+      }
+
       console.log('[useChampionData] Got response, extracting champion array...');
       const championArray = Object.values(championListResponse.data);
       console.log(`[useChampionData] Extracted ${championArray.length} champions`);
@@ -42,12 +58,20 @@ export function useChampionData(): UseChampionDataReturn {
       setChampions(championArray);
       console.log('[useChampionData] State updated successfully');
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('[useChampionData] Request was aborted');
+        return;
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Failed to load champions';
       setError(errorMessage);
       console.error('[useChampionData] Error loading champions:', err);
     } finally {
-      setIsLoading(false);
-      console.log('[useChampionData] loadChampions completed');
+      if (!signal?.aborted) {
+        setIsLoading(false);
+        console.log('[useChampionData] loadChampions completed');
+      }
     }
   }
 
@@ -55,7 +79,7 @@ export function useChampionData(): UseChampionDataReturn {
     loadChampions();
   }
 
-  const loadChampionDetail = useCallback(async (championId: string): Promise<ChampionDetail | null> => {
+  const loadChampionDetail = useCallback(async (championId: string, signal?: AbortSignal): Promise<ChampionDetail | null> => {
     // Check cache first
     const cached = championDetailCache.current.get(championId);
     if (cached) {
@@ -74,7 +98,14 @@ export function useChampionData(): UseChampionDataReturn {
     const fetchPromise = (async () => {
       try {
         console.log(`Fetching champion detail for ${championId}`);
-        const detailResponse = await dataDragonService.getChampionDetail(championId);
+        const detailResponse = await dataDragonService.getChampionDetail(championId, signal);
+
+        // Check if aborted after fetch
+        if (signal?.aborted) {
+          console.log(`[useChampionData] Aborted after getChampionDetail for ${championId}`);
+          return null;
+        }
+
         const championDetail = Object.values(detailResponse.data)[0];
 
         // Store in cache
@@ -82,6 +113,11 @@ export function useChampionData(): UseChampionDataReturn {
 
         return championDetail;
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log(`[useChampionData] Champion detail request was aborted for ${championId}`);
+          return null;
+        }
         console.error('Failed to load champion detail:', err);
         return null;
       } finally {

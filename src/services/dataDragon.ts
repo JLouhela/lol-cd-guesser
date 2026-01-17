@@ -14,10 +14,19 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Fetch with timeout support to prevent browser freezing
+ * Accepts an external abort signal for cancellation
  */
-async function fetchWithTimeout(url: string, timeoutMs: number = TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number = TIMEOUT_MS,
+  externalSignal?: AbortSignal
+): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // If external signal aborts, abort our controller too
+  const abortHandler = () => controller.abort();
+  externalSignal?.addEventListener('abort', abortHandler);
 
   try {
     const response = await fetch(url, { signal: controller.signal });
@@ -38,13 +47,15 @@ async function fetchWithTimeout(url: string, timeoutMs: number = TIMEOUT_MS): Pr
       throw new Error(`Request timeout after ${timeoutMs}ms`);
     }
     throw error;
+  } finally {
+    externalSignal?.removeEventListener('abort', abortHandler);
   }
 }
 
 /**
  * Fetch with automatic retries and exponential backoff
  */
-async function fetchWithRetry(url: string, retries: number = MAX_RETRIES): Promise<Response> {
+async function fetchWithRetry(url: string, retries: number = MAX_RETRIES, externalSignal?: AbortSignal): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -55,7 +66,7 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES): Promi
         await sleep(backoffDelay);
       }
 
-      const response = await fetchWithTimeout(url);
+      const response = await fetchWithTimeout(url, TIMEOUT_MS, externalSignal);
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -76,13 +87,13 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES): Promi
 export class DataDragonService {
   private version: string | null = null;
 
-  async getLatestVersion(): Promise<string> {
+  async getLatestVersion(signal?: AbortSignal): Promise<string> {
     if (this.version) {
       return this.version;
     }
 
     try {
-      const response = await fetchWithRetry(`${BASE_URL}/api/versions.json`);
+      const response = await fetchWithRetry(`${BASE_URL}/api/versions.json`, MAX_RETRIES, signal);
       const versions: string[] = await response.json();
       this.version = versions[0]; // Latest version is first
       return this.version;
@@ -92,13 +103,15 @@ export class DataDragonService {
     }
   }
 
-  async getChampionList(): Promise<ChampionListResponse> {
-    const version = await this.getLatestVersion();
+  async getChampionList(signal?: AbortSignal): Promise<ChampionListResponse> {
+    const version = await this.getLatestVersion(signal);
     console.log('[DataDragon] Fetching champion list...');
 
     try {
       const response = await fetchWithTimeout(
-        `${BASE_URL}/cdn/${version}/data/en_US/champion.json`
+        `${BASE_URL}/cdn/${version}/data/en_US/champion.json`,
+        TIMEOUT_MS,
+        signal
       );
       console.log('[DataDragon] Champion list response received, parsing JSON...');
       const data: ChampionListResponse = await response.json();
@@ -110,13 +123,15 @@ export class DataDragonService {
     }
   }
 
-  async getChampionDetail(championId: string): Promise<ChampionDetailResponse> {
-    const version = await this.getLatestVersion();
+  async getChampionDetail(championId: string, signal?: AbortSignal): Promise<ChampionDetailResponse> {
+    const version = await this.getLatestVersion(signal);
     console.log(`[DataDragon] Fetching champion detail for ${championId}...`);
 
     try {
       const response = await fetchWithTimeout(
-        `${BASE_URL}/cdn/${version}/data/en_US/champion/${championId}.json`
+        `${BASE_URL}/cdn/${version}/data/en_US/champion/${championId}.json`,
+        TIMEOUT_MS,
+        signal
       );
       console.log(`[DataDragon] Champion detail response received for ${championId}, parsing JSON...`);
       const data: ChampionDetailResponse = await response.json();

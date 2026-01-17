@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useChampionData } from '../../hooks/useChampionData';
 import { useQuizLogic } from '../../hooks/useQuizLogic';
 import { selectRandomChampion } from '../../utils/randomization';
@@ -30,6 +30,7 @@ export function QuizContainer() {
   } = useQuizLogic();
 
   const [isLoadingQuestion, setIsLoadingQuestion] = useState(false);
+  const loadQuestionAbortController = useRef<AbortController | null>(null);
 
   // Load first question when champions are available
   useEffect(() => {
@@ -45,21 +46,39 @@ export function QuizContainer() {
       return;
     }
 
+    // Cancel any existing question load
+    if (loadQuestionAbortController.current) {
+      console.log('[QuizContainer] Aborting previous question load');
+      loadQuestionAbortController.current.abort();
+    }
+
+    // Create new abort controller for this load
+    loadQuestionAbortController.current = new AbortController();
+    const signal = loadQuestionAbortController.current.signal;
+
     console.log('[QuizContainer] loadNewQuestion started');
     setIsLoadingQuestion(true);
 
     try {
       const randomChampion = selectRandomChampion(champions);
       console.log(`[QuizContainer] Selected champion: ${randomChampion.name}`);
-      const championDetail = await loadChampionDetail(randomChampion.id);
+      const championDetail = await loadChampionDetail(randomChampion.id, signal);
+
+      // Check if aborted
+      if (signal.aborted) {
+        console.log('[QuizContainer] Question load was aborted');
+        return;
+      }
 
       if (championDetail && championDetail.spells.length > 0) {
         console.log(`[QuizContainer] Starting new question with ${championDetail.name}`);
         startNewQuestion(championDetail);
       }
     } finally {
-      setIsLoadingQuestion(false);
-      console.log('[QuizContainer] loadNewQuestion completed');
+      if (!signal.aborted) {
+        setIsLoadingQuestion(false);
+        console.log('[QuizContainer] loadNewQuestion completed');
+      }
     }
   }
 
