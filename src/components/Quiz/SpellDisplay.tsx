@@ -29,11 +29,12 @@ export function SpellDisplay({ spell, spellIndex }: SpellDisplayProps) {
           <p className="text-gray-400 text-sm">Ability {keybind}</p>
         </div>
       </div>
-      <div className="mt-4">
+      <div className="mt-4 flex justify-center">
         <img
           src={spellIconUrl}
           alt={spell.name}
-          className="w-full max-w-md mx-auto rounded-lg shadow-2xl border-4 border-gray-700"
+          className="w-48 h-48 rounded-lg shadow-2xl border-4 border-gray-700"
+          style={{ imageRendering: 'crisp-edges' }}
         />
       </div>
     </div>

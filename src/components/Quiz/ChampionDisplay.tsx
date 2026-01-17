@@ -14,6 +14,10 @@ export function ChampionDisplay({ champion }: ChampionDisplayProps) {
         src={iconUrl}
         alt={champion.name}
         className="w-16 h-16 rounded-full border-4 border-yellow-400 shadow-md"
+        onError={(e) => {
+          console.error('Failed to load champion icon:', iconUrl);
+          e.currentTarget.style.display = 'none';
+        }}
       />
       <div>
         <h2 className="text-2xl font-bold text-white">{champion.name}</h2>

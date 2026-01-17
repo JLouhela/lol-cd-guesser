@@ -8,17 +8,18 @@ export function getRangeSize(cooldown: number): number {
   if (cooldown <= 15) return 3; // Medium CDs: 3s ranges (e.g., 7-9s, 10-12s)
   if (cooldown <= 40) return 5; // Large CDs: 5s ranges (e.g., 20-25s)
   if (cooldown <= 80) return 10; // Very large: 10s ranges (e.g., 60-70s)
-  return 20; // Ultimate CDs: 20s ranges (e.g., 100-120s)
+  return 30; // Ultimate CDs: 30s ranges with 10s gaps (e.g., 100-120, 130-150, 160-180)
 }
 
 /**
  * Generate a range option with proper label
+ * Ranges are exclusive at the max to prevent overlap (e.g., 8-9.99 displayed as "8-9")
  */
-function createRangeOption(min: number, max: number): RangeOption {
+function createRangeOption(min: number, max: number, isInclusive: boolean = false): RangeOption {
   return {
     min,
-    max,
-    label: `${min}-${max}s`,
+    max: isInclusive ? max : max - 0.01, // Make max exclusive unless specified
+    label: `${min}-${max - 1}s`,
   };
 }
 
@@ -27,33 +28,64 @@ function createRangeOption(min: number, max: number): RangeOption {
  */
 export function generateRangeOptions(actualCooldown: number): RangeOption[] {
   const rangeSize = getRangeSize(actualCooldown);
+  const isUltimate = actualCooldown > 80;
 
-  // Find the range that contains the actual cooldown
+  if (isUltimate) {
+    // For ultimates, use special logic with rounded ranges and gaps
+    // Round to nearest 10 for range boundaries
+    const roundedCd = Math.round(actualCooldown / 10) * 10;
+
+    // Create 30s-wide ranges with 10s gaps: 100-120, 130-150, 160-180
+    const correctMin = Math.floor(roundedCd / 30) * 30;
+    const correctMax = correctMin + 20; // 20s wide range
+    const correctRange = createRangeOption(correctMin, correctMax + 1);
+
+    const ranges: RangeOption[] = [correctRange];
+
+    // Add lower range with 10s gap (e.g., if correct is 100-120, lower is 70-90)
+    if (correctMin >= 30) {
+      ranges.push(createRangeOption(correctMin - 30, correctMin - 10 + 1));
+    }
+
+    // Add higher range with 10s gap (e.g., if correct is 100-120, higher is 130-150)
+    ranges.push(createRangeOption(correctMax + 10, correctMax + 30 + 1));
+
+    // If we need more ranges, add another one
+    if (ranges.length < 3) {
+      if (correctMin >= 60) {
+        ranges.push(createRangeOption(correctMin - 60, correctMin - 40 + 1));
+      } else {
+        ranges.push(createRangeOption(correctMax + 40, correctMax + 60 + 1));
+      }
+    }
+
+    return shuffleArray(ranges.slice(0, 3));
+  }
+
+  // Standard logic for non-ultimate abilities
   const correctMin = Math.floor(actualCooldown / rangeSize) * rangeSize;
   const correctMax = correctMin + rangeSize;
   const correctRange = createRangeOption(correctMin, correctMax);
 
-  // Generate two distractor ranges
   const ranges: RangeOption[] = [correctRange];
 
-  // Add a lower range if possible
+  // Add a lower range if possible (e.g., if correct is 6-8, lower is 3-5)
   if (correctMin >= rangeSize) {
-    ranges.push(createRangeOption(correctMin - rangeSize, correctMax - rangeSize));
+    ranges.push(createRangeOption(correctMin - rangeSize, correctMin));
   }
 
-  // Add a higher range
-  ranges.push(createRangeOption(correctMin + rangeSize, correctMax + rangeSize));
+  // Add a higher range (e.g., if correct is 6-8, higher is 9-11)
+  ranges.push(createRangeOption(correctMax, correctMax + rangeSize));
 
   // If we need more ranges, add another one
   if (ranges.length < 3) {
     if (correctMin >= rangeSize * 2) {
-      ranges.push(createRangeOption(correctMin - rangeSize * 2, correctMax - rangeSize * 2));
+      ranges.push(createRangeOption(correctMin - rangeSize * 2, correctMin - rangeSize));
     } else {
-      ranges.push(createRangeOption(correctMin + rangeSize * 2, correctMax + rangeSize * 2));
+      ranges.push(createRangeOption(correctMax + rangeSize, correctMax + rangeSize * 2));
     }
   }
 
-  // Shuffle and return 3 ranges
   return shuffleArray(ranges.slice(0, 3));
 }
 

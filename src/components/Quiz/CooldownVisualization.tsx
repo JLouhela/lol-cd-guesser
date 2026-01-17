@@ -6,35 +6,50 @@ interface CooldownVisualizationProps {
 }
 
 export function CooldownVisualization({ spell }: CooldownVisualizationProps) {
-  const [animationProgress, setAnimationProgress] = useState(0);
+  const [rank1Time, setRank1Time] = useState(0);
+  const [maxRankTime, setMaxRankTime] = useState(0);
 
   const rank1Cooldown = spell.cooldown[0];
   const maxRank = spell.maxrank;
   const maxRankCooldown = spell.cooldown[maxRank - 1];
+  const maxCooldown = Math.max(rank1Cooldown, maxRankCooldown);
 
   useEffect(() => {
-    const duration = 3000; // 3 seconds
-    const interval = 50; // Update every 50ms
-    const steps = duration / interval;
-    let currentStep = 0;
+    // Reset timers when spell changes
+    setRank1Time(0);
+    setMaxRankTime(0);
+
+    // Calculate time scale factor
+    // For very long cooldowns, speed up the animation
+    // Max 20 seconds real-time, scale down if longer
+    const scaleFactor = maxCooldown > 20 ? 20 / maxCooldown : 1;
+    const interval = 100; // Update every 100ms
 
     const timer = setInterval(() => {
-      currentStep++;
-      setAnimationProgress(currentStep / steps);
-
-      if (currentStep >= steps) {
-        clearInterval(timer);
-      }
+      setRank1Time((prev) => {
+        const next = prev + (interval / 1000) / scaleFactor;
+        return next >= rank1Cooldown ? rank1Cooldown : next;
+      });
+      setMaxRankTime((prev) => {
+        const next = prev + (interval / 1000) / scaleFactor;
+        return next >= maxRankCooldown ? maxRankCooldown : next;
+      });
     }, interval);
 
     return () => clearInterval(timer);
-  }, [spell]);
+  }, [spell, rank1Cooldown, maxRankCooldown, maxCooldown]);
 
-  const maxCooldown = Math.max(rank1Cooldown, maxRankCooldown);
+  const scaleFactor = maxCooldown > 20 ? 20 / maxCooldown : 1;
+  const isScaled = maxCooldown > 20;
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-      <h3 className="text-xl font-bold text-white mb-6 text-center">Cooldown Comparison</h3>
+      <h3 className="text-xl font-bold text-white mb-2 text-center">Cooldown Comparison</h3>
+      {isScaled && (
+        <p className="text-gray-400 text-sm text-center mb-4">
+          (Animation scaled to {(scaleFactor * 100).toFixed(0)}% speed for visibility)
+        </p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Rank 1 */}
@@ -59,14 +74,14 @@ export function CooldownVisualization({ spell }: CooldownVisualizationProps) {
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 80}`}
                 strokeDashoffset={`${
-                  2 * Math.PI * 80 * (1 - (animationProgress * rank1Cooldown) / maxCooldown)
+                  2 * Math.PI * 80 * (1 - rank1Time / maxCooldown)
                 }`}
                 className="transition-all duration-100"
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-4xl font-bold text-white">
-                {Math.floor(animationProgress * rank1Cooldown)}s
+                {rank1Time.toFixed(1)}s
               </span>
             </div>
           </div>
@@ -97,14 +112,14 @@ export function CooldownVisualization({ spell }: CooldownVisualizationProps) {
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 80}`}
                 strokeDashoffset={`${
-                  2 * Math.PI * 80 * (1 - (animationProgress * maxRankCooldown) / maxCooldown)
+                  2 * Math.PI * 80 * (1 - maxRankTime / maxCooldown)
                 }`}
                 className="transition-all duration-100"
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-4xl font-bold text-white">
-                {Math.floor(animationProgress * maxRankCooldown)}s
+                {maxRankTime.toFixed(1)}s
               </span>
             </div>
           </div>
