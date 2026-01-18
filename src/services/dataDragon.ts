@@ -1,9 +1,9 @@
 import type { ChampionListResponse, ChampionDetailResponse } from '../types';
 
 const BASE_URL = 'https://ddragon.leagueoflegends.com';
-const TIMEOUT_MS = 8000; // 8 second timeout
-const MAX_RETRIES = 1; // Reduced to 1 retry
-const RETRY_DELAY_MS = 1000; // 1 second between retries
+const TIMEOUT_MS = 5000; // 5 second timeout (reduced for faster failures)
+const MAX_RETRIES = 0; // No retries to fail fast
+const RETRY_DELAY_MS = 500; // Reduced retry delay
 
 /**
  * Sleep utility for retry delays
@@ -37,7 +37,10 @@ async function fetchWithTimeout(
   externalSignal?.addEventListener('abort', abortHandler);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      cache: 'no-store' // Force fresh fetch, bypass cache
+    });
     clearTimeout(timeoutId);
 
     if (!response.ok) {
@@ -140,19 +143,27 @@ export class DataDragonService {
   }
 
   async getChampionDetail(championId: string, signal?: AbortSignal): Promise<ChampionDetailResponse> {
+    console.log(`[DataDragon] getChampionDetail called for ${championId}`);
+    console.log('[DataDragon] Getting latest version...');
     const version = await this.getLatestVersion(signal);
+    console.log(`[DataDragon] Version: ${version}`);
 
     try {
+      const url = `${BASE_URL}/cdn/${version}/data/en_US/champion/${championId}.json`;
+      console.log(`[DataDragon] Fetching from: ${url}`);
       const response = await fetchWithTimeout(
-        `${BASE_URL}/cdn/${version}/data/en_US/champion/${championId}.json`,
+        url,
         TIMEOUT_MS,
         signal
       );
+      console.log('[DataDragon] Fetch completed, parsing JSON...');
       const data: ChampionDetailResponse = await response.json();
+      console.log('[DataDragon] JSON parsed successfully');
       return data;
     } catch (error) {
       // Rethrow AbortErrors as-is so they can be handled properly upstream
       if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[DataDragon] Aborted');
         throw error;
       }
       console.error(`[DataDragon] Failed to fetch champion detail for ${championId}:`, error);

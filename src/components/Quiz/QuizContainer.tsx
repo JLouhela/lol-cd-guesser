@@ -36,12 +36,15 @@ export function QuizContainer() {
 
   // Load first question when champions are available
   useEffect(() => {
+    console.log(`[QuizContainer] useEffect triggered: champions.length=${champions.length}, currentChampion=${!!currentChampion}, isLoadingQuestion=${isLoadingQuestion}`);
     if (champions.length > 0 && !currentChampion && !isLoadingQuestion) {
+      console.log('[QuizContainer] Calling loadNewQuestion');
       loadNewQuestion();
     }
 
     // Cleanup on unmount
     return () => {
+      console.log('[QuizContainer] Cleanup - unmounting');
       if (loadTimeoutRef.current !== null) {
         clearTimeout(loadTimeoutRef.current);
       }
@@ -52,12 +55,15 @@ export function QuizContainer() {
   }, [champions.length]);
 
   async function loadNewQuestion() {
+    console.log('[QuizContainer] loadNewQuestion called');
     if (isLoadingQuestion) {
+      console.log('[QuizContainer] Already loading, returning');
       return;
     }
 
     // Cancel any existing question load
     if (loadQuestionAbortController.current) {
+      console.log('[QuizContainer] Aborting previous load');
       loadQuestionAbortController.current.abort();
     }
 
@@ -70,6 +76,7 @@ export function QuizContainer() {
     loadQuestionAbortController.current = new AbortController();
     const signal = loadQuestionAbortController.current.signal;
 
+    console.log('[QuizContainer] Setting loading state');
     setIsLoadingQuestion(true);
     setQuestionLoadError(null);
 
@@ -83,24 +90,59 @@ export function QuizContainer() {
       setQuestionLoadError('Loading took too long. Please try again.');
     }, 15000);
 
-    try {
-      const randomChampion = selectRandomChampion(champions);
-      const championDetail = await loadChampionDetail(randomChampion.id, signal);
+    console.log('[QuizContainer] Starting question load try block');
 
+    try {
+      console.log('[QuizContainer] Selecting random champion from', champions.length, 'champions');
+      const randomChampion = selectRandomChampion(champions);
+      console.log('[QuizContainer] Selected champion:', randomChampion.id);
+
+      // Retry logic for network errors
+      let championDetail = null;
+      let retryCount = 0;
+      const maxRetries = 2;
+
+      console.log('[QuizContainer] Starting retry loop for champion detail');
+      while (retryCount <= maxRetries && !signal.aborted) {
+        try {
+          console.log(`[QuizContainer] Attempt ${retryCount + 1} - calling loadChampionDetail for ${randomChampion.id}`);
+          championDetail = await loadChampionDetail(randomChampion.id, signal);
+          console.log('[QuizContainer] loadChampionDetail succeeded');
+          break; // Success, exit retry loop
+        } catch (detailErr) {
+          console.error(`[QuizContainer] loadChampionDetail failed, attempt ${retryCount + 1}:`, detailErr);
+          retryCount++;
+          if (retryCount <= maxRetries && !signal.aborted) {
+            console.log(`[QuizContainer] Waiting ${500 * retryCount}ms before retry`);
+            // Wait before retry (exponential backoff: 500ms, 1000ms)
+            await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+          } else {
+            throw detailErr; // Out of retries or aborted
+          }
+        }
+      }
+
+      console.log('[QuizContainer] Clearing timeout after success');
       // Clear timeout on success
       if (loadTimeoutRef.current !== null) {
         clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
       }
 
+      console.log('[QuizContainer] Checking if aborted:', signal.aborted);
       // Check if aborted
       if (signal.aborted) {
+        console.log('[QuizContainer] Aborted, returning');
         return;
       }
 
+      console.log('[QuizContainer] Champion detail:', championDetail ? 'exists' : 'null', championDetail?.spells?.length || 0, 'spells');
       if (championDetail && championDetail.spells.length > 0) {
+        console.log('[QuizContainer] Calling startNewQuestion');
         startNewQuestion(championDetail);
+        console.log('[QuizContainer] startNewQuestion completed');
       } else {
+        console.log('[QuizContainer] No champion detail or spells, setting error');
         setQuestionLoadError('Failed to load champion details. Please try again.');
       }
     } catch (err) {

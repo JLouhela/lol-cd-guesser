@@ -108,7 +108,11 @@ export function generateExactOptions(
   const step = isLargeCooldown ? 10 : 1;
 
   // Generate distractor values within the range
-  while (options.size < 3) {
+  let attempts = 0;
+  const maxAttempts = 100; // Prevent infinite loops
+
+  while (options.size < 3 && attempts < maxAttempts) {
+    attempts++;
     let randomValue: number;
 
     if (hasDecimals) {
@@ -128,6 +132,25 @@ export function generateExactOptions(
 
     if (randomValue !== correctCooldown && randomValue >= rangeMin && randomValue <= rangeMax) {
       options.add(randomValue);
+    }
+  }
+
+  // If we couldn't generate enough options, manually add nearby values
+  if (options.size < 3) {
+    let offset = 1;
+    while (options.size < 3 && offset < 100) {
+      const newValue = correctCooldown + (hasDecimals ? offset + 0.5 : offset);
+      if (newValue !== correctCooldown && newValue >= rangeMin && newValue <= rangeMax) {
+        options.add(newValue);
+      }
+      // Also try negative offset
+      if (options.size < 3) {
+        const negValue = correctCooldown - (hasDecimals ? offset + 0.5 : offset);
+        if (negValue !== correctCooldown && negValue >= rangeMin && negValue <= rangeMax) {
+          options.add(negValue);
+        }
+      }
+      offset++;
     }
   }
 
@@ -155,13 +178,29 @@ export function generateMaxRankOptions(spell: Spell): number[] {
   const isLargeCooldown = maxRankCooldown > 80;
   const step = isLargeCooldown ? 10 : 1;
 
-  while (options.size < 3) {
+  let attempts = 0;
+  const maxAttempts = 100; // Prevent infinite loops
+
+  while (options.size < 3 && attempts < maxAttempts) {
+    attempts++;
     const offset = (Math.floor(Math.random() * rangeSize * 2) - rangeSize);
     const roundedOffset = isLargeCooldown ? Math.round(offset / step) * step : offset;
     const distractor = maxRankCooldown + roundedOffset;
 
     if (distractor > 0 && distractor !== maxRankCooldown && distractor !== rank1Cooldown) {
       options.add(distractor);
+    }
+  }
+
+  // If we couldn't generate enough options, manually add nearby values
+  if (options.size < 3) {
+    let offset = step;
+    while (options.size < 3) {
+      const newValue = maxRankCooldown + offset;
+      if (newValue > 0 && newValue !== maxRankCooldown && newValue !== rank1Cooldown) {
+        options.add(newValue);
+      }
+      offset += step;
     }
   }
 

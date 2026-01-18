@@ -43,10 +43,20 @@ export function useQuizLogic(): UseQuizLogicReturn {
   const [showVisualization, setShowVisualization] = useState(false);
 
   const startNewQuestion = useCallback((champion: ChampionDetail) => {
+    console.log('[useQuizLogic] startNewQuestion called with champion:', champion.name);
+    console.log('[useQuizLogic] Selecting random spell...');
     const { spell, spellIndex } = selectRandomSpell(champion);
-    const rank = selectRandomRank(spell);
-    const options = generateQuestionOptions(spell, rank);
+    console.log('[useQuizLogic] Selected spell:', spell.name, 'at index', spellIndex);
 
+    console.log('[useQuizLogic] Selecting random rank...');
+    const rank = selectRandomRank(spell);
+    console.log('[useQuizLogic] Selected rank:', rank);
+
+    console.log('[useQuizLogic] Generating question options...');
+    const options = generateQuestionOptions(spell, rank);
+    console.log('[useQuizLogic] Generated options:', options);
+
+    console.log('[useQuizLogic] Setting all state...');
     setCurrentChampion(champion);
     setCurrentSpell(spell);
     setCurrentSpellIndex(spellIndex);
@@ -60,6 +70,7 @@ export function useQuizLogic(): UseQuizLogicReturn {
     setPhase2Correct(null);
     setPhase3Correct(null);
     setShowVisualization(false);
+    console.log('[useQuizLogic] All state set, startNewQuestion complete');
   }, []);
 
   const answerPhase1 = useCallback(
