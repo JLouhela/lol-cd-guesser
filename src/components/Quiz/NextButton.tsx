@@ -4,9 +4,15 @@ interface NextButtonProps {
 }
 
 export function NextButton({ onClick, disabled = false }: NextButtonProps) {
+  const handleClick = () => {
+    onClick();
+    // Scroll to top for mobile users to see the new question
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       className={`w-full sm:w-auto px-8 py-4 rounded-lg font-bold text-lg transition-all transform ${
         disabled
