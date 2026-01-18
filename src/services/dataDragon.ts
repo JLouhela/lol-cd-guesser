@@ -22,10 +22,18 @@ async function fetchWithTimeout(
   externalSignal?: AbortSignal
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let isTimeout = false;
+
+  const timeoutId = setTimeout(() => {
+    isTimeout = true;
+    controller.abort();
+  }, timeoutMs);
 
   // If external signal aborts, abort our controller too
-  const abortHandler = () => controller.abort();
+  const abortHandler = () => {
+    clearTimeout(timeoutId); // Clear timeout when externally aborted
+    controller.abort();
+  };
   externalSignal?.addEventListener('abort', abortHandler);
 
   try {
@@ -44,7 +52,12 @@ async function fetchWithTimeout(
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timeout after ${timeoutMs}ms`);
+      // Check if this was a timeout or external abort
+      if (isTimeout) {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      // External abort - rethrow the AbortError so it can be caught upstream
+      throw error;
     }
     throw error;
   } finally {
@@ -72,8 +85,8 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES, extern
       lastError = error instanceof Error ? error : new Error(String(error));
       console.warn(`Attempt ${attempt + 1}/${retries + 1} failed for ${url}:`, lastError.message);
 
-      // Don't retry on timeout - it's unlikely to succeed
-      if (lastError.message.includes('timeout')) {
+      // Don't retry on AbortError (external cancellation) or timeout
+      if (lastError.name === 'AbortError' || lastError.message.includes('timeout')) {
         throw lastError;
       }
 
@@ -98,6 +111,10 @@ export class DataDragonService {
       this.version = versions[0]; // Latest version is first
       return this.version;
     } catch (error) {
+      // Rethrow AbortErrors as-is so they can be handled properly upstream
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
       console.error('Failed to fetch version:', error);
       throw new Error('Failed to fetch latest version');
     }
@@ -118,6 +135,10 @@ export class DataDragonService {
       console.log('[DataDragon] Champion list parsed successfully');
       return data;
     } catch (error) {
+      // Rethrow AbortErrors as-is so they can be handled properly upstream
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
       console.error('[DataDragon] Failed to fetch champion list:', error);
       throw new Error('Failed to fetch champion list');
     }
@@ -138,6 +159,10 @@ export class DataDragonService {
       console.log(`[DataDragon] Champion detail parsed successfully for ${championId}`);
       return data;
     } catch (error) {
+      // Rethrow AbortErrors as-is so they can be handled properly upstream
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
       console.error(`[DataDragon] Failed to fetch champion detail for ${championId}:`, error);
       throw new Error(`Failed to fetch champion detail for ${championId}`);
     }
