@@ -9,11 +9,19 @@ interface SpellDescriptionProps {
 export function SpellDescription({ spell, champion }: SpellDescriptionProps) {
   const [showTips, setShowTips] = useState(false);
 
+  // Clean and sanitize HTML content (only allow br tags)
+  const sanitizeHtml = (html: string) => {
+    return html.replace(/<br\s*\/?>/gi, '<br />');
+  };
+
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg space-y-4">
       <div>
         <h4 className="text-sm font-semibold text-yellow-400 mb-2">Description</h4>
-        <p className="text-gray-300 text-sm leading-relaxed">{spell.description}</p>
+        <p
+          className="text-gray-300 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(spell.description) }}
+        />
       </div>
 
       <button
@@ -33,7 +41,10 @@ export function SpellDescription({ spell, champion }: SpellDescriptionProps) {
               </h4>
               <ul className="text-gray-300 text-sm space-y-1 list-disc list-inside">
                 {champion.allytips.slice(0, 3).map((tip, index) => (
-                  <li key={index}>{tip}</li>
+                  <li
+                    key={index}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(tip) }}
+                  />
                 ))}
               </ul>
             </div>
@@ -46,7 +57,10 @@ export function SpellDescription({ spell, champion }: SpellDescriptionProps) {
               </h4>
               <ul className="text-gray-300 text-sm space-y-1 list-disc list-inside">
                 {champion.enemytips.slice(0, 3).map((tip, index) => (
-                  <li key={index}>{tip}</li>
+                  <li
+                    key={index}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(tip) }}
+                  />
                 ))}
               </ul>
             </div>
