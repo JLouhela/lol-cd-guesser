@@ -103,6 +103,10 @@ export function generateExactOptions(
   // Check if the correct cooldown has decimals
   const hasDecimals = correctCooldown % 1 !== 0;
 
+  // For large cooldowns (>80), use multiples of 10
+  const isLargeCooldown = correctCooldown > 80;
+  const step = isLargeCooldown ? 10 : 1;
+
   // Generate distractor values within the range
   while (options.size < 3) {
     let randomValue: number;
@@ -111,6 +115,12 @@ export function generateExactOptions(
       // Generate values with .5 decimals (common in LoL: 6.5, 7.5, 8.5, etc.)
       const wholeNumber = Math.floor(Math.random() * (rangeMax - rangeMin)) + rangeMin;
       randomValue = wholeNumber + 0.5;
+    } else if (isLargeCooldown) {
+      // For large cooldowns, generate multiples of 10
+      const minStep = Math.ceil(rangeMin / step);
+      const maxStep = Math.floor(rangeMax / step);
+      const randomStep = Math.floor(Math.random() * (maxStep - minStep + 1)) + minStep;
+      randomValue = randomStep * step;
     } else {
       // Generate whole numbers
       randomValue = Math.floor(Math.random() * (rangeMax - rangeMin + 1)) + rangeMin;
@@ -142,9 +152,14 @@ export function generateMaxRankOptions(spell: Spell): number[] {
 
   // Add distractor values
   const rangeSize = getRangeSize(maxRankCooldown);
+  const isLargeCooldown = maxRankCooldown > 80;
+  const step = isLargeCooldown ? 10 : 1;
+
   while (options.size < 3) {
-    const offset = Math.floor(Math.random() * rangeSize * 2) - rangeSize;
-    const distractor = maxRankCooldown + offset;
+    const offset = (Math.floor(Math.random() * rangeSize * 2) - rangeSize);
+    const roundedOffset = isLargeCooldown ? Math.round(offset / step) * step : offset;
+    const distractor = maxRankCooldown + roundedOffset;
+
     if (distractor > 0 && distractor !== maxRankCooldown && distractor !== rank1Cooldown) {
       options.add(distractor);
     }
