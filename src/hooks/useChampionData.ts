@@ -21,56 +21,73 @@ export function useChampionData(): UseChampionDataReturn {
   const championDetailCache = useRef<Map<string, ChampionDetail>>(new Map());
   // Track in-flight requests to prevent duplicate fetches
   const pendingRequests = useRef<Map<string, Promise<ChampionDetail | null>>>(new Map());
+  // Track if component is mounted
+  const isMountedRef = useRef(true);
+  // Track the current abort controller to prevent duplicate concurrent loads
+  const currentAbortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const abortController = new AbortController();
+    isMountedRef.current = true;
+
     loadChampions(abortController.signal);
 
     // Cleanup on unmount
     return () => {
-      console.log('[useChampionData] Component unmounting, aborting requests');
+      isMountedRef.current = false;
       abortController.abort();
       // Clear pending requests to prevent memory leaks
       pendingRequests.current.clear();
+      currentAbortController.current = null;
     };
   }, []);
 
   async function loadChampions(signal?: AbortSignal) {
-    console.log('[useChampionData] loadChampions started');
+    // If there's already a load in progress with a different signal, don't start another
+    if (currentAbortController.current && !currentAbortController.current.signal.aborted) {
+      return;
+    }
+
     try {
+      if (!isMountedRef.current) return;
+
+      // Track this load
+      if (signal) {
+        // Create a wrapper to track it, but signal might be from AbortController
+        // We can't store the signal directly, so we check if there's an ongoing request another way
+        currentAbortController.current = { signal } as AbortController;
+      }
+
       setIsLoading(true);
       setError(null);
-      console.log('[useChampionData] Calling getChampionList...');
 
       const championListResponse = await dataDragonService.getChampionList(signal);
 
-      // Check if aborted after async operation
-      if (signal?.aborted) {
-        console.log('[useChampionData] Aborted after getChampionList');
+      // Check if component is still mounted and not aborted
+      if (!isMountedRef.current || signal?.aborted) {
         return;
       }
 
-      console.log('[useChampionData] Got response, extracting champion array...');
       const championArray = Object.values(championListResponse.data);
-      console.log(`[useChampionData] Extracted ${championArray.length} champions`);
 
       setVersion(championListResponse.version);
       setChampions(championArray);
-      console.log('[useChampionData] State updated successfully');
     } catch (err) {
       // Ignore abort errors
       if (err instanceof Error && err.name === 'AbortError') {
-        console.log('[useChampionData] Request was aborted');
         return;
       }
+
+      if (!isMountedRef.current) return;
 
       const errorMessage = err instanceof Error ? err.message : 'Failed to load champions';
       setError(errorMessage);
       console.error('[useChampionData] Error loading champions:', err);
     } finally {
-      if (!signal?.aborted) {
+      currentAbortController.current = null;
+      // Always set loading to false if component is still mounted
+      if (isMountedRef.current) {
         setIsLoading(false);
-        console.log('[useChampionData] loadChampions completed');
       }
     }
   }
@@ -83,26 +100,22 @@ export function useChampionData(): UseChampionDataReturn {
     // Check cache first
     const cached = championDetailCache.current.get(championId);
     if (cached) {
-      console.log(`Using cached champion detail for ${championId}`);
       return cached;
     }
 
     // Check if there's already a request in flight for this champion
     const pending = pendingRequests.current.get(championId);
     if (pending) {
-      console.log(`Waiting for in-flight request for ${championId}`);
       return pending;
     }
 
     // Not in cache, fetch from API
     const fetchPromise = (async () => {
       try {
-        console.log(`Fetching champion detail for ${championId}`);
         const detailResponse = await dataDragonService.getChampionDetail(championId, signal);
 
         // Check if aborted after fetch
         if (signal?.aborted) {
-          console.log(`[useChampionData] Aborted after getChampionDetail for ${championId}`);
           return null;
         }
 
@@ -115,7 +128,6 @@ export function useChampionData(): UseChampionDataReturn {
       } catch (err) {
         // Ignore abort errors
         if (err instanceof Error && err.name === 'AbortError') {
-          console.log(`[useChampionData] Champion detail request was aborted for ${championId}`);
           return null;
         }
         console.error('Failed to load champion detail:', err);

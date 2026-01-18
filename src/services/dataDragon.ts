@@ -75,7 +75,6 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES, extern
     try {
       if (attempt > 0) {
         const backoffDelay = RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-        console.log(`Retry attempt ${attempt}/${retries} for ${url} after ${backoffDelay}ms delay`);
         await sleep(backoffDelay);
       }
 
@@ -83,7 +82,6 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES, extern
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.warn(`Attempt ${attempt + 1}/${retries + 1} failed for ${url}:`, lastError.message);
 
       // Don't retry on AbortError (external cancellation) or timeout
       if (lastError.name === 'AbortError' || lastError.message.includes('timeout')) {
@@ -122,7 +120,6 @@ export class DataDragonService {
 
   async getChampionList(signal?: AbortSignal): Promise<ChampionListResponse> {
     const version = await this.getLatestVersion(signal);
-    console.log('[DataDragon] Fetching champion list...');
 
     try {
       const response = await fetchWithTimeout(
@@ -130,9 +127,7 @@ export class DataDragonService {
         TIMEOUT_MS,
         signal
       );
-      console.log('[DataDragon] Champion list response received, parsing JSON...');
       const data: ChampionListResponse = await response.json();
-      console.log('[DataDragon] Champion list parsed successfully');
       return data;
     } catch (error) {
       // Rethrow AbortErrors as-is so they can be handled properly upstream
@@ -146,7 +141,6 @@ export class DataDragonService {
 
   async getChampionDetail(championId: string, signal?: AbortSignal): Promise<ChampionDetailResponse> {
     const version = await this.getLatestVersion(signal);
-    console.log(`[DataDragon] Fetching champion detail for ${championId}...`);
 
     try {
       const response = await fetchWithTimeout(
@@ -154,9 +148,7 @@ export class DataDragonService {
         TIMEOUT_MS,
         signal
       );
-      console.log(`[DataDragon] Champion detail response received for ${championId}, parsing JSON...`);
       const data: ChampionDetailResponse = await response.json();
-      console.log(`[DataDragon] Champion detail parsed successfully for ${championId}`);
       return data;
     } catch (error) {
       // Rethrow AbortErrors as-is so they can be handled properly upstream

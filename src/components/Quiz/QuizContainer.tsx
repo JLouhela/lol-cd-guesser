@@ -30,54 +30,96 @@ export function QuizContainer() {
   } = useQuizLogic();
 
   const [isLoadingQuestion, setIsLoadingQuestion] = useState(false);
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const loadQuestionAbortController = useRef<AbortController | null>(null);
+  const loadTimeoutRef = useRef<number | null>(null);
 
   // Load first question when champions are available
   useEffect(() => {
     if (champions.length > 0 && !currentChampion && !isLoadingQuestion) {
-      console.log('[QuizContainer] Initial question load triggered');
       loadNewQuestion();
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (loadTimeoutRef.current !== null) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+      if (loadQuestionAbortController.current) {
+        loadQuestionAbortController.current.abort();
+      }
+    };
   }, [champions.length]);
 
   async function loadNewQuestion() {
     if (isLoadingQuestion) {
-      console.log('[QuizContainer] Already loading a question, skipping');
       return;
     }
 
     // Cancel any existing question load
     if (loadQuestionAbortController.current) {
-      console.log('[QuizContainer] Aborting previous question load');
       loadQuestionAbortController.current.abort();
+    }
+
+    // Clear any existing timeout
+    if (loadTimeoutRef.current !== null) {
+      clearTimeout(loadTimeoutRef.current);
     }
 
     // Create new abort controller for this load
     loadQuestionAbortController.current = new AbortController();
     const signal = loadQuestionAbortController.current.signal;
 
-    console.log('[QuizContainer] loadNewQuestion started');
     setIsLoadingQuestion(true);
+    setQuestionLoadError(null);
+
+    // Set a timeout to prevent indefinite loading
+    loadTimeoutRef.current = window.setTimeout(() => {
+      console.error('[QuizContainer] Question load timed out after 15 seconds');
+      if (loadQuestionAbortController.current) {
+        loadQuestionAbortController.current.abort();
+      }
+      setIsLoadingQuestion(false);
+      setQuestionLoadError('Loading took too long. Please try again.');
+    }, 15000);
 
     try {
       const randomChampion = selectRandomChampion(champions);
-      console.log(`[QuizContainer] Selected champion: ${randomChampion.name}`);
       const championDetail = await loadChampionDetail(randomChampion.id, signal);
+
+      // Clear timeout on success
+      if (loadTimeoutRef.current !== null) {
+        clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
 
       // Check if aborted
       if (signal.aborted) {
-        console.log('[QuizContainer] Question load was aborted');
         return;
       }
 
       if (championDetail && championDetail.spells.length > 0) {
-        console.log(`[QuizContainer] Starting new question with ${championDetail.name}`);
         startNewQuestion(championDetail);
+      } else {
+        setQuestionLoadError('Failed to load champion details. Please try again.');
       }
+    } catch (err) {
+      // Clear timeout on error
+      if (loadTimeoutRef.current !== null) {
+        clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
+
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+
+      console.error('[QuizContainer] Error loading question:', err);
+      setQuestionLoadError('Failed to load question. Please try again.');
     } finally {
       if (!signal.aborted) {
         setIsLoadingQuestion(false);
-        console.log('[QuizContainer] loadNewQuestion completed');
       }
     }
   }
@@ -97,6 +139,27 @@ export function QuizContainer() {
             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
           >
             Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if question failed to load
+  if (questionLoadError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center px-4">
+        <div className="bg-red-900 border-2 border-red-500 rounded-lg p-8 max-w-md w-full shadow-2xl">
+          <h2 className="text-2xl font-bold text-white mb-4">Failed to Load Question</h2>
+          <p className="text-red-200 mb-6">{questionLoadError}</p>
+          <button
+            onClick={() => {
+              setQuestionLoadError(null);
+              loadNewQuestion();
+            }}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
+          >
+            Try Again
           </button>
         </div>
       </div>
