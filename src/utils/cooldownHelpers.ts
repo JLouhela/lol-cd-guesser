@@ -103,9 +103,13 @@ export function generateExactOptions(
   // Check if the correct cooldown has decimals
   const hasDecimals = correctCooldown % 1 !== 0;
 
-  // For large cooldowns (>80), use multiples of 10
-  const isLargeCooldown = correctCooldown > 80;
-  const step = isLargeCooldown ? 10 : 1;
+  // Determine step size based on cooldown magnitude
+  let step = 1;
+  if (correctCooldown > 80) {
+    step = 10; // Very large cooldowns: 10s steps
+  } else if (correctCooldown >= 35) {
+    step = 5; // Semi-long cooldowns: 5s steps
+  }
 
   // Generate distractor values within the range
   let attempts = 0;
@@ -119,8 +123,8 @@ export function generateExactOptions(
       // Generate values with .5 decimals (common in LoL: 6.5, 7.5, 8.5, etc.)
       const wholeNumber = Math.floor(Math.random() * (rangeMax - rangeMin)) + rangeMin;
       randomValue = wholeNumber + 0.5;
-    } else if (isLargeCooldown) {
-      // For large cooldowns, generate multiples of 10
+    } else if (step > 1) {
+      // For stepped cooldowns (5s or 10s), generate multiples of step
       const minStep = Math.ceil(rangeMin / step);
       const maxStep = Math.floor(rangeMax / step);
       const randomStep = Math.floor(Math.random() * (maxStep - minStep + 1)) + minStep;
@@ -137,7 +141,7 @@ export function generateExactOptions(
 
   // If we couldn't generate enough options, manually add nearby values
   if (options.size < 3) {
-    let offset = 1;
+    let offset = step;
     while (options.size < 3 && offset < 100) {
       const newValue = correctCooldown + (hasDecimals ? offset + 0.5 : offset);
       if (newValue !== correctCooldown && newValue >= rangeMin && newValue <= rangeMax) {
@@ -150,7 +154,7 @@ export function generateExactOptions(
           options.add(negValue);
         }
       }
-      offset++;
+      offset += step;
     }
   }
 
@@ -175,8 +179,14 @@ export function generateMaxRankOptions(spell: Spell): number[] {
 
   // Add distractor values
   const rangeSize = getRangeSize(maxRankCooldown);
-  const isLargeCooldown = maxRankCooldown > 80;
-  const step = isLargeCooldown ? 10 : 1;
+
+  // Determine step size based on cooldown magnitude
+  let step = 1;
+  if (maxRankCooldown > 80) {
+    step = 10; // Very large cooldowns: 10s steps
+  } else if (maxRankCooldown >= 35) {
+    step = 5; // Semi-long cooldowns: 5s steps
+  }
 
   let attempts = 0;
   const maxAttempts = 100; // Prevent infinite loops
@@ -184,7 +194,7 @@ export function generateMaxRankOptions(spell: Spell): number[] {
   while (options.size < 3 && attempts < maxAttempts) {
     attempts++;
     const offset = (Math.floor(Math.random() * rangeSize * 2) - rangeSize);
-    const roundedOffset = isLargeCooldown ? Math.round(offset / step) * step : offset;
+    const roundedOffset = step > 1 ? Math.round(offset / step) * step : offset;
     const distractor = maxRankCooldown + roundedOffset;
 
     if (distractor > 0 && distractor !== maxRankCooldown && distractor !== rank1Cooldown) {
