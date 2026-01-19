@@ -10,7 +10,7 @@ export function selectRandomChampion(champions: ChampionSummary[]): ChampionSumm
 
 /**
  * Select a random spell from a champion
- * Ultimates (R) have a 25% chance, other spells share the remaining 75%
+ * Ultimates (R) have a 10% chance, other spells share the remaining 90%
  */
 export function selectRandomSpell(champion: ChampionDetail): {
   spell: Spell;
@@ -19,12 +19,12 @@ export function selectRandomSpell(champion: ChampionDetail): {
   const rand = Math.random();
   let spellIndex: number;
 
-  // Ultimate (R) has 25% chance
-  if (rand < 0.25) {
+  // Ultimate (R) has 10% chance
+  if (rand < 0.10) {
     spellIndex = 3; // R ability
   } else {
-    // Q, W, E share the remaining 75% equally (25% each)
-    const basicSpellIndex = Math.floor((rand - 0.25) / 0.25);
+    // Q, W, E share the remaining 90% equally (30% each)
+    const basicSpellIndex = Math.floor((rand - 0.10) / 0.30);
     spellIndex = Math.min(basicSpellIndex, 2); // Ensure it's 0, 1, or 2
   }
 
