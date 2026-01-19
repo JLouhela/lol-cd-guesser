@@ -163,6 +163,7 @@ export function generateExactOptions(
 
 /**
  * Generate 3 options for the max rank cooldown question
+ * Ensures no option is higher than rank 1 cooldown
  */
 export function generateMaxRankOptions(spell: Spell): number[] {
   const maxRank = spell.maxrank;
@@ -197,7 +198,8 @@ export function generateMaxRankOptions(spell: Spell): number[] {
     const roundedOffset = step > 1 ? Math.round(offset / step) * step : offset;
     const distractor = maxRankCooldown + roundedOffset;
 
-    if (distractor > 0 && distractor !== maxRankCooldown && distractor !== rank1Cooldown) {
+    // Ensure distractor is not higher than rank 1 cooldown
+    if (distractor > 0 && distractor <= rank1Cooldown && distractor !== maxRankCooldown && distractor !== rank1Cooldown) {
       options.add(distractor);
     }
   }
@@ -205,10 +207,18 @@ export function generateMaxRankOptions(spell: Spell): number[] {
   // If we couldn't generate enough options, manually add nearby values
   if (options.size < 3) {
     let offset = step;
-    while (options.size < 3) {
-      const newValue = maxRankCooldown + offset;
-      if (newValue > 0 && newValue !== maxRankCooldown && newValue !== rank1Cooldown) {
+    while (options.size < 3 && offset < 100) {
+      // Try lower value
+      const newValue = maxRankCooldown - offset;
+      if (newValue > 0 && newValue <= rank1Cooldown && newValue !== maxRankCooldown && newValue !== rank1Cooldown) {
         options.add(newValue);
+      }
+      // Try higher value (but still capped at rank1Cooldown)
+      if (options.size < 3) {
+        const higherValue = maxRankCooldown + offset;
+        if (higherValue > 0 && higherValue <= rank1Cooldown && higherValue !== maxRankCooldown && higherValue !== rank1Cooldown) {
+          options.add(higherValue);
+        }
       }
       offset += step;
     }
